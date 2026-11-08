@@ -15,15 +15,6 @@
 3. **WebView 推广卡**：信息流内嵌 WebView 的推广位（如"无门槛红包"倒计时卡），
    卡片根为 `id/ll_web`，WebView 挂载后整卡高度置零。
 
-细节说明：
-
-- RecyclerView 的 LayoutManager 布局时**不跳过 GONE 子项**，只
-  `setVisibility(GONE)` 会留白，必须把 `layoutParams.height` 置 0 才能塌陷
-- ViewHolder 被复用为普通内容时，自动恢复原始高度与边距，不影响正常信息流
-- Hook 覆盖 `TextView.setText` 的三种重载：`(CharSequence)`、`(int)`、
-  `(CharSequence, BufferType)`
-- App 内 RecyclerView 为自定义子类，父链匹配用 `instanceof` 而非精确类名
-
 ## 使用步骤
 
 1. 从 [Releases](https://github.com/ghsssss/ITHomeAdKill/releases) 下载 APK 安装，
