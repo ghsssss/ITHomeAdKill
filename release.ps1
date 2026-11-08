@@ -7,7 +7,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$proj    = "C:\Users\姚在宇\Desktop\ITHomeAdKill"        # 源码目录(git 仓库)
+$proj    = "C:\Users\姚在宇\Documents\ITHomeAdKill"       # 源码目录(git 仓库)
 $build   = "C:\ITHomeAdKill"                              # 构建目录(纯英文路径)
 $gradle  = "C:\Users\姚在宇\.gradle\wrapper\dists\gradle-8.9-bin\90cnw93cvbtalezasaz0blq0a\gradle-8.9\bin\gradle.bat"
 $gh      = "C:\Program Files\GitHub CLI\gh.exe"
@@ -41,7 +41,7 @@ Write-Host "==> [5/7] 发布 GitHub Release (ghsssss/ITHomeAdKill)" -ForegroundC
 & $gh release create $Version $apkNamed --repo ghsssss/ITHomeAdKill --title $Version --notes $Notes
 
 Write-Host "==> [6/7] 更新 LSPosed 仓库 updates.json" -ForegroundColor Cyan
-$modRepo = "C:\Users\姚在宇\Desktop\ITHomeAdKill-repo"
+$modRepo = "C:\Users\姚在宇\Documents\ITHomeAdKill-repo"
 git -C $modRepo pull
 # versionCode 取 tag 数字部分递增
 $vcode = [int]($Version -replace '\D', '')
