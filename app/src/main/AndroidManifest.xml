@@ -3,6 +3,7 @@
 
     <application
         android:label="IT之家去广告"
+        android:icon="@mipmap/ic_launcher"
         android:allowBackup="false">
 
         <!-- Xposed / LSPosed 模块声明 -->
