@@ -12,7 +12,7 @@
             android:value="true" />
         <meta-data
             android:name="xposeddescription"
-            android:value="IT之家(com.ruanmei.ithome)广告拦截：封锁广告SDK类加载" />
+            android:value="隐藏IT之家信息流广告卡、置顶卡、事件日历与WebView推广卡" />
         <meta-data
             android:name="xposedminversion"
             android:value="82" />
