@@ -4,36 +4,46 @@
 
 ## 原理
 
-第一版采用通用性最强的方案：Hook 应用的 `ClassLoader.loadClass`，
-命中广告 SDK 包名前缀（穿山甲、优量汇、快手联盟、百度等 18 家）的类直接抛
-`ClassNotFoundException`，让广告 SDK 无法初始化、广告请求发不出去。
-App 内的广告调用一般包在 try/catch 里，会静默走"加载失败"路径，不影响正常使用。
+分析发现 IT之家的信息流广告**不走第三方广告 SDK 客户端渲染**（穿山甲/优量汇/
+京东联盟等 SDK 均未参与广告展示，实测封锁 SDK 类加载零命中），而是由自家广告
+引擎下发普通数据卡片。因此本模块采用**视图级拦截**，共三条规则：
 
-该方案不依赖 App 的混淆类名，IT之家更新版本后大概率依然有效。
+1. **角标广告卡**：广告卡片角标是 `id/tv_small_tags` 的 TextView（普通新闻该
+   控件显示时间戳），文字为"广告"时向上找到 RecyclerView 的直接子项（卡片根
+   `ShadowLayout`）高度置零。同机制顺带处理"置顶"卡。
+2. **事件日历卡**：标题 `id/tv_title` 为"事件日历"的卡片，同样高度置零。
+3. **WebView 推广卡**：信息流内嵌 WebView 的推广位（如"无门槛红包"倒计时卡），
+   卡片根为 `id/ll_web`，WebView 挂载后整卡高度置零。
+
+细节说明：
+
+- RecyclerView 的 LayoutManager 布局时**不跳过 GONE 子项**，只
+  `setVisibility(GONE)` 会留白，必须把 `layoutParams.height` 置 0 才能塌陷
+- ViewHolder 被复用为普通内容时，自动恢复原始高度与边距，不影响正常信息流
+- Hook 覆盖 `TextView.setText` 的三种重载：`(CharSequence)`、`(int)`、
+  `(CharSequence, BufferType)`
+- App 内 RecyclerView 为自定义子类，父链匹配用 `instanceof` 而非精确类名
 
 ## 使用步骤
 
-1. 用 Android Studio 打开 `ITHomeAdKill` 目录（首次会自动同步依赖）
-2. `Build > Build APK(s)` 生成 `app-debug.apk` 并安装
-3. 打开 LSPosed 管理器 → 模块 → 启用「IT之家去广告」，作用域勾选 IT之家
-4. 强制停止 IT之家后重新打开
+1. 从 [Releases](https://github.com/ghsssss/ITHomeAdKill/releases) 下载 APK 安装，
+   或用 Android Studio 打开项目自行编译
+2. LSPosed 管理器 → 模块 → 启用「IT之家去广告」，作用域勾选 IT之家
+3. 强制停止 IT之家后重新打开
 
 ## 查看拦截日志
 
-LSPosed 管理器 → 日志，过滤 `ITHomeAdKill`，能看到每次被封锁的 SDK 类名。
+LSPosed 管理器 → 日志，过滤 `ITHomeAdKill`，可看到每次卡片隐藏记录，
+例如 `已隐藏[广告]卡片(高度置零)`。
 
 ## 进阶排查（如果还有漏网广告）
 
-1. 把 `MainHook.kt` 里 `DEBUG_LOG_ACTIVITIES` 改为 `true`，重新编译安装，
-   日志里会打印每个打开的 Activity 类名——开屏广告一般是名字含
-   `Splash`/`Ad` 的 Activity
-2. 用 jadx 反编译 IT之家 APK，搜索 `TTAd`、`GDT`、`AdView` 等关键字，
-   把漏掉的 SDK 前缀加进 `blockedPrefixes` 数组
-3. 若是信息流里的原生广告（不走独立 SDK 或类名被完全混淆），下一步可引入
-   DexKit 按特征定位广告容器类后 `setVisibility(GONE)`，这是第二期的活
+1. 用 `adb shell uiautomator dump` 抓取广告所在页面，找到广告卡片特征
+   （角标文字、卡片根 resource-id）
+2. 在 `MainHook.kt` 的 `hookAdCardView` / `hookWebViewPromo` 中补充匹配规则
+3. 开屏广告、阅读页广告等场景按同样思路扩展
 
 ## 注意
 
-- `ClassNotFoundException` 若导致 App 闪退（个别 SDK 在关键路径被硬引用），
-  从 `blockedPrefixes` 里删掉对应前缀即可定位问题 SDK
 - minSdk 26，需 LSPosed（原版 Xposed 不支持新版 Android）
+- 隐藏触发词（广告/置顶/事件日历）为精确/前缀匹配，正常新闻不受影响
