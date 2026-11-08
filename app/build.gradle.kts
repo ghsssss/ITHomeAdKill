@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.yao.ithomeadkill"
+    namespace = "io.github.ghsssss.ithomeadkill"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.yao.ithomeadkill"
+        applicationId = "io.github.ghsssss.ithomeadkill"
         minSdk = 26
         targetSdk = 34
         versionCode = 1

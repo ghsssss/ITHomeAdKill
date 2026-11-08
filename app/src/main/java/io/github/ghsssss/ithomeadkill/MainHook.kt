@@ -1,4 +1,4 @@
-package com.yao.ithomeadkill
+package io.github.ghsssss.ithomeadkill
 
 import android.view.View
 import android.view.ViewGroup
