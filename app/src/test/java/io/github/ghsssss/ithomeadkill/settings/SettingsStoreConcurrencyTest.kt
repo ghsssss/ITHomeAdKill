@@ -232,7 +232,7 @@ class SettingsStoreConcurrencyTest {
             assertEquals(0, storage.writerCreations.get())
             assertEquals(1, storage.writes.size)
             assertEquals(42L, storage.snapshot()!!.revision)
-            assertEquals(3, storage.values["settings_schema"])
+            assertEquals(5, storage.values["settings_schema"])
             assertFalse(storage.values.containsKey("hide_event_calendar"))
             assertEquals(first.settings, second.settings)
         }
@@ -250,14 +250,16 @@ class SettingsStoreConcurrencyTest {
             runTogether({ first.reload() }, { second.setToggle(Toggle.ARTICLE_REWARDS, true) })
 
             val expected = (legacy - "hide_event_calendar") + mapOf(
-                "settings_schema" to 3,
+                "settings_schema" to 5,
+                "hide_article_commission" to false,
+                "comment_tree_lines" to false,
                 "settings_revision" to 41L + storage.writes.size,
                 "hide_article_rewards" to true,
             )
             assertEquals("iteration=$iteration", expected, storage.values)
             assertTrue(storage.writes.size in 1..2)
             assertTrue(storage.writes.all {
-                it["settings_schema"] == 3 && !it.containsKey("hide_event_calendar")
+                it["settings_schema"] == 5 && !it.containsKey("hide_event_calendar")
             })
             assertEquals(0, storage.writerCreations.get())
         }
@@ -360,7 +362,9 @@ class SettingsStoreConcurrencyTest {
                 runTogether({ first.reload() }, { second.setToggle(Toggle.AI_SUMMARY, false) })
 
                 val expected = (legacy - "hide_event_calendar") + mapOf(
-                    "settings_schema" to 3,
+                    "settings_schema" to 5,
+                    "hide_article_commission" to false,
+                    "comment_tree_lines" to false,
                     "settings_revision" to 41L + storage.writes.size,
                     "hide_article_rewards" to (legacy["hide_article_rewards"] ?: false),
                     "hide_article_ai_summary" to false,
@@ -368,11 +372,80 @@ class SettingsStoreConcurrencyTest {
                 assertEquals("iteration=$iteration schema=${legacy["settings_schema"]}", expected, storage.values)
                 assertTrue(storage.writes.size in 1..2)
                 assertEquals((0 until storage.writes.size).map { 42L + it }, storage.writes.map { it["settings_revision"] })
-                assertTrue(storage.writes.all { it["settings_schema"] == 3 && !it.containsKey("hide_event_calendar") })
+                assertTrue(storage.writes.all { it["settings_schema"] == 5 && !it.containsKey("hide_event_calendar") })
                 assertEquals(0, storage.writerCreations.get())
                 assertFalse(storage.snapshot()!!.raw(Toggle.AI_SUMMARY))
                 assertFalse(storage.snapshot()!!.enabled(Toggle.AI_SUMMARY))
             }
+        }
+    }
+
+    @Test
+    fun concurrentSchemaFourReloadsConfirmOneMigrationWithoutLosingCommissionOrCreatingWriter() {
+        repeat(30) { iteration ->
+            val legacy = schemaFourPreferences() + ("hide_article_commission" to true)
+            val storage = SharedStorage(legacy).apply { readDelayMillis = 1L }
+            val first = storage.store()
+            val second = storage.store()
+
+            runTogether({ first.reload() }, { second.reload() })
+
+            val expected = legacy + mapOf("settings_schema" to 5, "settings_revision" to 42L, "comment_tree_lines" to false)
+            assertEquals("iteration=$iteration", expected, storage.values)
+            assertEquals(listOf(expected), storage.writes.toList())
+            assertEquals(first.settings, second.settings)
+            assertEquals(first.settings, storage.store().reload().settings)
+            assertEquals(0, storage.writerCreations.get())
+        }
+    }
+
+    @Test
+    fun concurrentSchemaFourReloadAndNewTreeSelectionPreserveEveryOldChoiceAndMonotonicRevision() {
+        repeat(30) { iteration ->
+            val legacy = schemaFourPreferences() + ("hide_article_commission" to true)
+            val storage = SharedStorage(legacy).apply { readDelayMillis = 1L }
+            val first = storage.store()
+            val second = storage.store()
+
+            runTogether({ first.reload() }, { second.setToggle(Toggle.COMMENT_TREE, true) })
+
+            val expected = legacy + mapOf(
+                "settings_schema" to 5,
+                "settings_revision" to 41L + storage.writes.size,
+                "comment_tree_lines" to true,
+            )
+            assertEquals("iteration=$iteration", expected, storage.values)
+            assertTrue(storage.writes.size in 1..2)
+            assertEquals((0 until storage.writes.size).map { 42L + it }, storage.writes.map { it["settings_revision"] })
+            assertTrue(storage.writes.all { it["settings_schema"] == 5 && it["hide_article_commission"] == true })
+            assertTrue(storage.snapshot()!!.raw(Toggle.COMMENT_TREE))
+            assertFalse(storage.snapshot()!!.enabled(Toggle.COMMENT_TREE))
+            assertEquals(0, storage.writerCreations.get())
+        }
+    }
+
+    @Test
+    fun concurrentMasterAndTreeEditsRetainBothChoicesAndMasterGating() {
+        repeat(30) { iteration ->
+            val initial = schemaFivePreferences() + ("master_enabled" to true)
+            val storage = SharedStorage(initial).apply { readDelayMillis = 1L }
+            val first = storage.store()
+            val second = storage.store()
+            first.reload()
+            second.reload()
+
+            runTogether({ first.setToggle(Toggle.MASTER, false) }, { second.setToggle(Toggle.COMMENT_TREE, true) })
+
+            val expected = initial + mapOf(
+                "settings_revision" to 43L,
+                "master_enabled" to false,
+                "comment_tree_lines" to true,
+            )
+            assertEquals("iteration=$iteration", expected, storage.values)
+            assertEquals(listOf(42L, 43L), storage.writes.map { it["settings_revision"] })
+            assertTrue(storage.snapshot()!!.raw(Toggle.COMMENT_TREE))
+            assertFalse(storage.snapshot()!!.enabled(Toggle.COMMENT_TREE))
+            assertEquals(0, storage.writerCreations.get())
         }
     }
 

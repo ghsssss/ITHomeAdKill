@@ -6,6 +6,7 @@ data class SettingsState(
     val settings: ModuleSettings? = null,
     val message: String = "正在读取设置",
     val busy: Boolean = true,
+    val error: Boolean = false,
 )
 
 /** 同一偏好后端的确认状态由进程内所有 Repository 共用，不随设置页销毁。 */
@@ -43,8 +44,7 @@ internal class SettingsStore(
             val mayInitialize = firstRead
             firstRead = false
             val current = ModuleSettings.fromPreferences(values)
-            val needsMigration = values[SettingsContract.SCHEMA_KEY] == 1 ||
-                values[SettingsContract.SCHEMA_KEY] == 2
+            val needsMigration = needsMigration(values)
             val pending = pendingWrite
             val retryEmptyInitialization = values.isEmpty() && pending != null &&
                 pendingBase == null && pending.revision == 1L
@@ -73,7 +73,7 @@ internal class SettingsStore(
                     if (current == null) {
                         result("设置数据无效或不完整，未覆盖原数据；请检查后重试")
                     } else {
-                        result("已读取框架设置；IT之家生效状态未核验")
+                        result("已读取框架设置；IT之家生效状态未核验", error = false)
                     }
                 }
             }
@@ -113,18 +113,22 @@ internal class SettingsStore(
             if (current == null) {
                 return@synchronized result("设置尚未成功读取，无法保存；请重试")
             }
-            val needsMigration = values[SettingsContract.SCHEMA_KEY] == 1 ||
-                values[SettingsContract.SCHEMA_KEY] == 2
+            val needsMigration = needsMigration(values)
             settings = if (needsMigration) null else current
             val changed = change(current)
             if (changed == current && !needsMigration) {
-                return@synchronized if (pendingWrite != null) persist(current) else result("本机设置未改变")
+                return@synchronized if (pendingWrite != null) persist(current) else result("本机设置未改变", error = false)
             }
             if (current.revision == Long.MAX_VALUE) {
                 return@synchronized result("保存失败：设置版本已达到上限")
             }
             persist(changed.copy(revision = current.revision + 1L), current)
         }
+
+    private fun needsMigration(values: Map<String, *>): Boolean {
+        val schema = values[SettingsContract.SCHEMA_KEY] as? Int ?: return false
+        return schema in 1..4
+    }
 
     // 调用者必须持有 processWriteLock，commit 与回读属于同一事务。
     private fun persist(next: ModuleSettings, base: ModuleSettings? = settings): SettingsState {
@@ -141,17 +145,18 @@ internal class SettingsStore(
                 settings = next
                 pendingWrite = null
                 pendingBase = null
-                result("设置已保存到框架；IT之家生效状态未核验")
+                result("设置已保存到框架；IT之家生效状态未核验", error = false)
             }
         } catch (_: Exception) {
             result("保存设置失败，修改未确认写入；请重试")
         }
     }
 
-    private fun result(message: String): SettingsState = SettingsState(
+    private fun result(message: String, error: Boolean = true): SettingsState = SettingsState(
         settings = settings,
         message = message,
         busy = false,
+        error = error,
     )
 
     private companion object {

@@ -77,16 +77,16 @@ jobs:
           echo "apk=${APK_NAME}" >> "$GITHUB_OUTPUT"
           echo "版本: ${VERSION_NAME} (${VERSION_CODE}) -> ${APK_NAME}"
 
-      - name: Build debug APK
+      - name: Build optimized release APK
         run: >-
-          ./gradlew --no-daemon --stacktrace assembleDebug
+          ./gradlew --no-daemon --stacktrace testDebugUnitTest lintRelease assembleRelease
           -PverName=${{ steps.ver.outputs.name }}
           -PverCode=${{ steps.ver.outputs.code }}
 
       - name: Rename APK
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk "dist/${{ steps.ver.outputs.apk }}"
+          cp app/build/outputs/apk/release/app-release.apk "dist/${{ steps.ver.outputs.apk }}"
           ls -l dist
 
       - name: Verify versionCode in APK

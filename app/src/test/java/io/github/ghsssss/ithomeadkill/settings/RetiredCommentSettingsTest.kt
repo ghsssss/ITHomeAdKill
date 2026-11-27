@@ -14,13 +14,13 @@ class RetiredCommentSettingsTest {
         val defaults = ModuleSettings.defaults(WRITER)
         assertFalse(defaults.toggles.keys.any { it.key == RETIRED_KEY })
         assertFalse(defaults.toPreferences().containsKey(RETIRED_KEY))
-        assertEquals(3, defaults.toPreferences()["settings_schema"])
+        assertEquals(5, defaults.toPreferences()["settings_schema"])
     }
 
     @Test
     fun enabledHistoricalSchemaThreeCommentKeyIsIgnoredAndNotExported() {
-        val expected = schemaThreePreferences()
-        val historical = expected + (RETIRED_KEY to true)
+        val expected = schemaFivePreferences()
+        val historical = schemaThreePreferences() + (RETIRED_KEY to true)
         val before = historical.toMap()
 
         val decoded = ModuleSettings.fromPreferences(historical)
@@ -33,7 +33,7 @@ class RetiredCommentSettingsTest {
 
     @Test
     fun missingFalseAndMalformedHistoricalValuesDecodeToTheSameRetainedSettings() {
-        val expected = schemaThreePreferences()
+        val expected = schemaFivePreferences()
         val expectedSettings = ModuleSettings.fromPreferences(expected)
         assertNotNull(expectedSettings)
         historicalSnapshots().forEach { historical ->
@@ -51,7 +51,9 @@ class RetiredCommentSettingsTest {
     fun legacySchemasIgnoreHistoricalCommentValuesWhilePreservingCalendarAndRewardsMigration() {
         legacySettingsSnapshots().forEach { legacy ->
             val expected = (legacy - "hide_event_calendar") + mapOf(
-                "settings_schema" to 3,
+                "settings_schema" to 5,
+                "comment_tree_lines" to false,
+                "hide_article_commission" to false,
                 "hide_article_rewards" to (legacy["hide_article_rewards"] ?: false),
             )
             historicalSnapshots(legacy).forEach { historical ->
@@ -91,13 +93,13 @@ class RetiredCommentSettingsTest {
 
     @Test
     fun historicalCommentKeyCannotRelaxRetainedFieldValidationOrAdmitFutureSchemas() {
-        val required = schemaThreePreferences()
+        val required = schemaFivePreferences()
         historicalSnapshots().forEach { historical ->
             val malformed = required.keys.map { historical - it } +
                 required.filterValues { it is Boolean }.keys.flatMap { key ->
                     listOf<Any?>(null, "true", 0, 1L).map { historical + (key to it) }
                 } + mapOf(
-                    "settings_schema" to listOf<Any?>(null, 4, 3L, "3"),
+                    "settings_schema" to listOf<Any?>(null, 6, 5L, "5"),
                     "settings_revision" to listOf<Any?>(null, 0L, -1L, 41, "41"),
                     "settings_writer_id" to listOf<Any?>(null, "invalid", 1L),
                     "auto_refresh_minutes" to listOf<Any?>(null, 2, 3, 10L, "10"),
@@ -119,7 +121,7 @@ class RetiredCommentSettingsTest {
 
     @Test
     fun reloadPreservesHistoricalSnapshotWithoutMigrationWritesOrNewWriter() {
-        val expected = ModuleSettings.fromPreferences(schemaThreePreferences())!!
+        val expected = ModuleSettings.fromPreferences(schemaFivePreferences())!!
         historicalSnapshots().forEach { historical ->
             val storage = MemoryStorage(historical)
             val store = storage.store()
@@ -139,8 +141,8 @@ class RetiredCommentSettingsTest {
 
     @Test
     fun changingOnlyHistoricalKeyAcrossReloadsNeverResetsOtherFields() {
-        val expected = ModuleSettings.fromPreferences(schemaThreePreferences())!!
-        val storage = MemoryStorage(schemaThreePreferences())
+        val expected = ModuleSettings.fromPreferences(schemaFivePreferences())!!
+        val storage = MemoryStorage(schemaFivePreferences())
         val store = storage.store()
         assertEquals(expected, store.reload().settings)
 
@@ -157,7 +159,7 @@ class RetiredCommentSettingsTest {
 
     @Test
     fun normalToggleSaveClearsHistoricalKeyAndPreservesEveryOtherRetainedField() {
-        val expected = schemaThreePreferences() + mapOf(
+        val expected = schemaFivePreferences() + mapOf(
             "settings_revision" to 42L,
             "hide_article_ai_summary" to false,
         )
@@ -180,7 +182,7 @@ class RetiredCommentSettingsTest {
 
     @Test
     fun normalRefreshSaveClearsHistoricalKeyWithoutChangingAnyToggleOrIdentity() {
-        val expected = schemaThreePreferences() + mapOf<String, Any>(
+        val expected = schemaFivePreferences() + mapOf<String, Any>(
             "settings_revision" to 42L,
             "auto_refresh_minutes" to 5,
         )
@@ -202,7 +204,7 @@ class RetiredCommentSettingsTest {
     }
 
     @Test
-    fun schemaThreeNoOpsDoNotRewriteHistoricalKeyOrIncrementRevision() {
+    fun schemaFiveNoOpsDoNotRewriteHistoricalKeyOrIncrementRevision() {
         historicalSnapshots().forEach { historical ->
             val storage = MemoryStorage(historical)
             val store = storage.store()
@@ -223,7 +225,7 @@ class RetiredCommentSettingsTest {
 
     @Test
     fun revisionLimitDoesNotForceHistoricalKeyMigrationButStillBlocksChanges() {
-        historicalSnapshots(schemaThreePreferences(Long.MAX_VALUE)).forEach { historical ->
+        historicalSnapshots(schemaFivePreferences(Long.MAX_VALUE)).forEach { historical ->
             val storage = MemoryStorage(historical)
             val store = storage.store()
             val initial = store.reload().settings
@@ -249,12 +251,12 @@ class RetiredCommentSettingsTest {
 
     @Test
     fun readbackThatReintroducesHistoricalKeyCannotConfirmAWriteAndRetriesSameRevision() {
-        val expected = schemaThreePreferences() + mapOf(
+        val expected = schemaFivePreferences() + mapOf(
             "settings_revision" to 42L,
             "hide_article_ai_summary" to false,
         )
         historicalValues().forEach { historicalValue ->
-            val storage = MemoryStorage(schemaThreePreferences() + (RETIRED_KEY to historicalValue)).apply {
+            val storage = MemoryStorage(schemaFivePreferences() + (RETIRED_KEY to historicalValue)).apply {
                 writeTransform = { next -> next + (RETIRED_KEY to historicalValue) }
             }
             val store = storage.store()
@@ -283,16 +285,13 @@ class RetiredCommentSettingsTest {
         }
     }
 
-    private fun schemaThreePreferences(revision: Long = 41L): Map<String, Any> =
-        schemaTwoPreferences(revision) + ("settings_schema" to 3)
-
     private fun historicalValues(): List<Any?> = listOf(
         true, false, null, "true", "false", 0, 1L, 1.0f, 1.0, setOf("true"), listOf(true),
         mapOf("enabled" to true),
     )
 
     private fun historicalSnapshots(
-        base: Map<String, Any> = schemaThreePreferences(),
+        base: Map<String, Any> = schemaFivePreferences(),
     ): List<Map<String, *>> = listOf(base) + historicalValues().map { base + (RETIRED_KEY to it) }
 
     private class MemoryStorage(initial: Map<String, *>) {

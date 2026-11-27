@@ -19,6 +19,11 @@ class SettingsRepository(context: Context) {
     private val executor = Executors.newSingleThreadExecutor { Thread(it, "ITHomeSettings") }
     private val mutableState = mutableStateOf(SettingsState())
     val state: State<SettingsState> = mutableState
+    private val statePublisher = SettingsStatePublisher(
+        dispatch = ::dispatchState,
+        current = { mutableState.value },
+        publish = { mutableState.value = it },
+    )
     private val connectionChanged: () -> Unit = { reload() }
 
     init {
@@ -88,26 +93,28 @@ class SettingsRepository(context: Context) {
                 val service = FrameworkConnection.selected()
                 if (service == null) {
                     publish(SettingsState(null,
-                        "未连接到唯一可用的 API 102 框架，请启用模块后重新打开设置。", busy = false))
+                        "未连接到唯一可用的 API 102 框架，请启用模块后重新打开设置。", busy = false, error = true))
                     return@execute
                 }
-                publish(SettingsState(mutableState.value.settings, "正在读取或保存框架设置", busy = true))
+                statePublisher.busy()
                 val next = try {
                     operation(store(service))
                 } catch (error: Exception) {
-                    SettingsState(null, "框架设置暂不可用：${error.javaClass.simpleName}", busy = false)
+                    SettingsState(null, "框架设置暂不可用：${error.javaClass.simpleName}", busy = false, error = true)
                 }
                 if (FrameworkConnection.selected() === service) publish(next)
-                else publish(SettingsState(null, "框架连接已变化，请重新载入。", busy = false))
+                else publish(SettingsState(null, "框架连接已变化，请重新载入。", busy = false, error = true))
             }
         }
     }
 
-    private fun publish(next: SettingsState) {
+    private fun publish(next: SettingsState) = statePublisher.publish(next)
+
+    private fun dispatchState(update: () -> Unit) {
         synchronized(lifecycleLock) {
             if (closed) return
             mainHandler.post {
-                synchronized(lifecycleLock) { if (!closed) mutableState.value = next }
+                synchronized(lifecycleLock) { if (!closed) update() }
             }
         }
     }

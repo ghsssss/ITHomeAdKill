@@ -127,6 +127,33 @@ internal class ModernHooks(
         }
     }
 
+    /** A narrowly scoped void-event gate, used only to coalesce adapter notifications inside a native transaction. */
+    @Synchronized fun consumeVoid(
+        method: Method,
+        consume: (XposedInterface.Chain) -> Boolean,
+        after: (XposedInterface.Chain) -> Unit = {},
+    ): XposedInterface.HookHandle? {
+        if (method.returnType != Void.TYPE) return null
+        handles[method]?.let { return it }
+        return try {
+            val handle = module.hook(method).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept { chain ->
+                    val consumed = runCatching { consume(chain) }.getOrElse {
+                        report("hook-notify-gate-failed:${method.name}:${it.javaClass.simpleName}")
+                        false
+                    }
+                    if (consumed) null else try { chain.proceed() } finally {
+                        ModernHookFlow.safely({ after(chain) })
+                    }
+                }
+            handles[method] = handle
+            handle
+        } catch (error: Throwable) {
+            report("hook-install-failed:${method.name}:${error.javaClass.simpleName}")
+            null
+        }
+    }
+
     @Synchronized fun unhook(executable: Executable): Boolean {
         val handle = handles[executable] ?: return false
         return try {

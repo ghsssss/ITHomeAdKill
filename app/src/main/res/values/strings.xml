@@ -6,12 +6,10 @@
 
     <string name="settings_group_master">总开关</string>
     <string name="settings_master_title">启用净化</string>
-    <string name="settings_master_summary">关闭后暂停全部净化和自动刷新，不会清空各项设置。</string>
 
     <string name="settings_group_home">首页</string>
     <string name="settings_home_carousel_title">关闭首页轮播</string>
     <string name="settings_refresh_title">自动刷新间隔</string>
-    <string name="settings_refresh_summary">仅刷新前台当前可见栏目，进入后台后暂停。</string>
     <string name="settings_refresh_off">关闭</string>
     <string name="settings_refresh_minutes">%1$d 分钟</string>
 
@@ -19,15 +17,16 @@
     <string name="settings_ai_summary_title">关闭 AI 总结</string>
     <string name="settings_article_rating_title">关闭文章打分</string>
     <string name="settings_article_rewards_title">关闭打赏与红包区域</string>
-    <string name="settings_article_rewards_summary">关闭文章底部的打赏按钮、红包入口和打赏人列表。</string>
+    <string name="settings_article_commission_title">关闭佣金广告</string>
+    <string name="settings_comment_tree_title">评论层级连接线</string>
 
     <string name="settings_group_purification">更多净化</string>
     <string name="settings_ad_cards_title">关闭信息流广告</string>
     <string name="settings_pinned_cards_title">关闭置顶卡片</string>
     <string name="settings_web_promos_title">关闭网页推广</string>
-    <string name="settings_web_promo_summary">仅关闭带明确广告标记的网页卡片，保留正常和未知网页内容。</string>
 
-    <string name="settings_loading_hint">正在载入已保存的选项，请稍候。</string>
-    <string name="settings_unavailable_hint">暂时无法载入设置，请重新打开设置页重试。具体原因见上方状态。</string>
-    <string name="settings_usage_note">要求支持现代 API 102 的 LSPosed，并勾选 IT之家作用域。框架设置保存成功不代表宿主已经加载；保存后返回或重启 IT之家。</string>
+    <string name="settings_group_application">应用</string>
+    <string name="settings_hide_launcher_title">隐藏桌面图标</string>
+    <string name="settings_launcher_read_error">无法读取桌面图标状态，请重新打开设置页。</string>
+    <string name="settings_launcher_change_error">桌面图标修改未确认生效，请重试。</string>
 </resources>

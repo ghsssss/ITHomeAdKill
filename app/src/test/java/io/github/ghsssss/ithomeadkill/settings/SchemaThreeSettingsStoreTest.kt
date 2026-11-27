@@ -14,7 +14,9 @@ class SchemaThreeSettingsStoreTest {
         val storage = MemoryStorage(legacy)
         val store = storage.store()
         val expected = legacy + mapOf<String, Any>(
-            "settings_schema" to 3,
+            "settings_schema" to 5,
+            "hide_article_commission" to false,
+            "comment_tree_lines" to false,
             "settings_revision" to 42L,
         )
 
@@ -43,7 +45,9 @@ class SchemaThreeSettingsStoreTest {
             val legacy = schemaTwoPreferences()
             val storage = MemoryStorage(legacy)
             val expected = legacy + mapOf<String, Any>(
-                "settings_schema" to 3,
+                "settings_schema" to 5,
+                "hide_article_commission" to false,
+                "comment_tree_lines" to false,
                 "settings_revision" to 42L,
             )
 
@@ -61,7 +65,9 @@ class SchemaThreeSettingsStoreTest {
         legacySettingsSnapshots().forEach { legacy ->
             val storage = MemoryStorage(legacy)
             val expected = (legacy - "hide_event_calendar") + mapOf(
-                "settings_schema" to 3,
+                "settings_schema" to 5,
+                "hide_article_commission" to false,
+                "comment_tree_lines" to false,
                 "settings_revision" to 42L,
                 "hide_article_rewards" to (legacy["hide_article_rewards"] ?: false),
                 "hide_article_ai_summary" to false,
@@ -110,7 +116,9 @@ class SchemaThreeSettingsStoreTest {
         val storage = MemoryStorage(legacy)
         val store = storage.store()
         val expected = legacy + mapOf<String, Any>(
-            "settings_schema" to 3,
+            "settings_schema" to 5,
+            "hide_article_commission" to false,
+            "comment_tree_lines" to false,
             "settings_revision" to Long.MAX_VALUE,
         )
 
@@ -138,7 +146,9 @@ class SchemaThreeSettingsStoreTest {
                 this.keepOldValues = keepOldValues
             }
             val expected = legacy + mapOf<String, Any>(
-                "settings_schema" to 3,
+                "settings_schema" to 5,
+                "hide_article_commission" to false,
+                "comment_tree_lines" to false,
                 "settings_revision" to 42L,
             )
 
@@ -162,7 +172,7 @@ class SchemaThreeSettingsStoreTest {
     @Test
     fun pendingRetryAgainstSchemaTwoDoesNotRepublishPreviousConfirmedSettings() {
         val legacy = schemaTwoPreferences()
-        val original = legacy + ("settings_schema" to 3)
+        val original = schemaFivePreferences()
         val storage = MemoryStorage(original)
         val store = storage.store()
         assertNotNull(store.reload().settings)
@@ -219,6 +229,9 @@ class SchemaThreeSettingsStoreTest {
                 { next -> legacy + ("settings_revision" to next["settings_revision"]!!) },
                 { next -> next + ("hide_event_calendar" to true) },
                 { next -> next - "hide_article_ai_summary" },
+                { next -> next - "hide_article_commission" },
+                { next -> next + ("hide_article_commission" to "false") },
+                { next -> next + ("hide_article_commission" to true) },
                 { next -> next + ("hide_article_ai_summary" to false) },
                 { next -> next + ("hide_article_ai_summary" to "true") },
                 { next -> next + ("comment_thread_lines" to true) },
@@ -236,7 +249,7 @@ class SchemaThreeSettingsStoreTest {
                 assertTrue(state.message.contains("失败"))
                 assertFalse(state.busy)
                 assertEquals(1, storage.writes.size)
-                assertEquals(3, storage.writes.single()["settings_schema"])
+                assertEquals(5, storage.writes.single()["settings_schema"])
                 assertEquals(42L, storage.writes.single()["settings_revision"])
                 assertEquals(transform(storage.writes.single()), storage.values)
                 assertEquals(0, storage.writerCreations)
@@ -246,10 +259,10 @@ class SchemaThreeSettingsStoreTest {
 
     @Test
     fun malformedLegacyCurrentAndFutureSnapshotsAreNeverDefaultedOrOverwritten() {
-        val schemaThree = schemaTwoPreferences() + mapOf(
-            "settings_schema" to 3,
-        )
-        val snapshots = legacySettingsSnapshots() + listOf(schemaThree)
+        val schemaFour = schemaFourPreferences()
+        assertEquals(4, schemaFour["settings_schema"])
+        assertFalse(schemaFour.containsKey("comment_tree_lines"))
+        val snapshots = legacySettingsSnapshots() + listOf(schemaFour, schemaFivePreferences())
         val invalid = snapshots.flatMap { snapshot ->
             snapshot.keys.map { key -> snapshot - key } +
                 snapshot.filterValues { it is Boolean }.keys.flatMap { key ->
@@ -261,7 +274,7 @@ class SchemaThreeSettingsStoreTest {
                     snapshot + ("settings_writer_id" to "invalid"),
                     snapshot + ("auto_refresh_minutes" to 3),
                     snapshot + ("auto_refresh_minutes" to 10L),
-                    snapshot + ("settings_schema" to 4),
+                    snapshot + ("settings_schema" to 6),
                     snapshot + ("settings_schema" to Int.MAX_VALUE),
                     snapshot + ("settings_schema" to "3"),
                     snapshot + ("settings_schema" to 3L),
@@ -289,7 +302,7 @@ class SchemaThreeSettingsStoreTest {
             schemaTwo + ("hide_article_rewards" to "true"),
             schemaThree - "hide_article_ai_summary",
             schemaThree + ("hide_article_ai_summary" to "false"),
-            schemaThree + ("settings_schema" to 4),
+            schemaThree + ("settings_schema" to 6),
         )
         corruptSnapshots.forEach { corrupt ->
             val storage = MemoryStorage(schemaTwo).apply { commitSucceeds = false }
@@ -335,7 +348,7 @@ class SchemaThreeSettingsStoreTest {
 
     @Test
     fun currentAiChoicePersistsIndependentlyAndNoOpsDoNotAddRevisions() {
-        val original = schemaTwoPreferences() + ("settings_schema" to 3)
+        val original = schemaFivePreferences()
         val storage = MemoryStorage(original)
         val store = storage.store()
         val initial = store.reload().settings!!
@@ -365,7 +378,7 @@ class SchemaThreeSettingsStoreTest {
 
     @Test
     fun failedCurrentAiWriteIsNotConfirmedFromSharedMemoryAcrossInstances() {
-        val original = schemaTwoPreferences() + mapOf("settings_schema" to 3, "hide_article_ai_summary" to false)
+        val original = schemaFivePreferences() + ("hide_article_ai_summary" to false)
         val storage = MemoryStorage(original)
         val first = storage.store()
         val confirmed = first.reload().settings

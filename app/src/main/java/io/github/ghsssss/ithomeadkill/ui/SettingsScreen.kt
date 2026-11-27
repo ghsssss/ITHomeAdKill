@@ -40,6 +40,9 @@ fun SettingsScreen(
     state: SettingsState,
     onToggleChange: (Toggle, Boolean) -> Unit,
     onRefreshMinutesChange: (Int) -> Unit,
+    launcherIconHidden: Boolean?,
+    launcherIconError: String?,
+    onLauncherIconChange: (Boolean) -> Unit,
 ) {
     val scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val listState = rememberLazyListState()
@@ -62,8 +65,10 @@ fun SettingsScreen(
             state = listState,
             contentPadding = contentPadding,
         ) {
-            item(key = "repository-status") {
-                RepositoryMessage(message = state.message)
+            if (state.error || (settings == null && state.busy)) {
+                item(key = "repository-status") {
+                    StatusMessage(message = state.message)
+                }
             }
 
             if (settings != null) {
@@ -76,7 +81,6 @@ fun SettingsScreen(
                             settings = settings,
                             toggle = Toggle.MASTER,
                             titleResource = R.string.settings_master_title,
-                            summaryResource = R.string.settings_master_summary,
                             enabled = true,
                             onToggleChange = onToggleChange,
                         )
@@ -120,7 +124,20 @@ fun SettingsScreen(
                             settings = settings,
                             toggle = Toggle.ARTICLE_REWARDS,
                             titleResource = R.string.settings_article_rewards_title,
-                            summaryResource = R.string.settings_article_rewards_summary,
+                            enabled = childControlsEnabled,
+                            onToggleChange = onToggleChange,
+                        )
+                        SettingSwitch(
+                            settings = settings,
+                            toggle = Toggle.ARTICLE_COMMISSION,
+                            titleResource = R.string.settings_article_commission_title,
+                            enabled = childControlsEnabled,
+                            onToggleChange = onToggleChange,
+                        )
+                        SettingSwitch(
+                            settings = settings,
+                            toggle = Toggle.COMMENT_TREE,
+                            titleResource = R.string.settings_comment_tree_title,
                             enabled = childControlsEnabled,
                             onToggleChange = onToggleChange,
                         )
@@ -147,37 +164,27 @@ fun SettingsScreen(
                             settings = settings,
                             toggle = Toggle.WEB_PROMOS,
                             titleResource = R.string.settings_web_promos_title,
-                            summaryResource = R.string.settings_web_promo_summary,
                             enabled = childControlsEnabled,
                             onToggleChange = onToggleChange,
                         )
                     }
                 }
-            } else {
-                item(key = "settings-unavailable") {
-                    Text(
-                        text = stringResource(
-                            if (state.busy) R.string.settings_loading_hint
-                            else R.string.settings_unavailable_hint,
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 28.dp, vertical = 16.dp),
-                        color = MiuixTheme.colorScheme.onSurface,
-                        style = MiuixTheme.textStyles.body2,
+            }
+
+            item(key = "application") {
+                SettingsSection(titleResource = R.string.settings_group_application) {
+                    SwitchPreference(
+                        title = stringResource(R.string.settings_hide_launcher_title),
+                        checked = launcherIconHidden == true,
+                        enabled = launcherIconHidden != null,
+                        onCheckedChange = onLauncherIconChange,
                     )
                 }
             }
-
-            item(key = "usage-note") {
-                Text(
-                    text = stringResource(R.string.settings_usage_note),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 28.dp, vertical = 16.dp),
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    style = MiuixTheme.textStyles.footnote1,
-                )
+            if (launcherIconError != null) {
+                item(key = "launcher-error") {
+                    StatusMessage(message = launcherIconError)
+                }
             }
             item(key = "bottom-space") {
                 Spacer(Modifier.height(16.dp))
@@ -207,7 +214,6 @@ private fun SettingSwitch(
     settings: ModuleSettings,
     toggle: Toggle,
     titleResource: Int,
-    summaryResource: Int? = null,
     enabled: Boolean,
     onToggleChange: (Toggle, Boolean) -> Unit,
 ) {
@@ -215,7 +221,6 @@ private fun SettingSwitch(
         checked = settings.raw(toggle),
         onCheckedChange = { checked -> onToggleChange(toggle, checked) },
         title = stringResource(titleResource),
-        summary = if (summaryResource != null) stringResource(summaryResource) else null,
         enabled = enabled,
     )
 }
@@ -235,7 +240,6 @@ private fun RefreshPreference(
     }
     OverlayDropdownPreference(
         title = stringResource(R.string.settings_refresh_title),
-        summary = stringResource(R.string.settings_refresh_summary),
         items = labels,
         selectedIndex = SettingsContract.REFRESH_MINUTES.indexOf(settings.autoRefreshMinutes),
         enabled = enabled,
@@ -248,14 +252,14 @@ private fun RefreshPreference(
 }
 
 @Composable
-private fun RepositoryMessage(message: String) {
+private fun StatusMessage(message: String) {
     Text(
         text = message,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 28.dp, vertical = 12.dp)
             .semantics { liveRegion = LiveRegionMode.Polite },
-        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-        style = MiuixTheme.textStyles.footnote1,
+        color = MiuixTheme.colorScheme.onSurface,
+        style = MiuixTheme.textStyles.body2,
     )
 }

@@ -29,6 +29,8 @@ class ModuleSettingsTest {
             Triple("ARTICLE_RATING", "hide_article_rating", false),
             Triple("ARTICLE_REWARDS", "hide_article_rewards", false),
             Triple("ARTICLE_RECOMMENDATIONS", "hide_article_recommendations", false),
+            Triple("ARTICLE_COMMISSION", "hide_article_commission", false),
+            Triple("COMMENT_TREE", "comment_tree_lines", false),
         )
 
         assertEquals(
@@ -166,17 +168,22 @@ class ModuleSettingsTest {
     }
 
     @Test
-    fun schemaMustBeIntOneTwoOrThreeNotAnUnknownVersionOrCoercibleType() {
-        listOf<Any?>(null, 0, -1, 4, Int.MAX_VALUE, 1L, 2L, 3L, "1", "2", "3", 3.0, 3.0f, true)
+    fun schemaMustBeIntOneTwoThreeFourOrFiveNotAnUnknownVersionOrCoercibleType() {
+        listOf<Any?>(null, 0, -1, 6, Int.MAX_VALUE, 1L, 2L, 3L, 4L, 5L, "1", "2", "3", "4", "5", 5.0, 5.0f, true)
             .forEach { value -> assertRejected("settings_schema", value) }
     }
 
     @Test
-    fun schemaThreeIsCurrentWhileSchemaFourIsUnknownWithIdenticalMetadata() {
+    fun schemaFiveIsCurrentWhileSchemaFourIsHistoricalAndSchemaSixIsUnknown() {
         val current = validPreferences()
-        assertEquals(3, current["settings_schema"])
+        assertEquals(5, current["settings_schema"])
         assertNotNull(ModuleSettings.fromPreferences(current))
-        assertNull(ModuleSettings.fromPreferences(current + ("settings_schema" to 4)))
+        val schemaFour = schemaFourPreferences()
+        assertEquals(4, schemaFour["settings_schema"])
+        assertFalse(schemaFour.containsKey("comment_tree_lines"))
+        assertNotNull(ModuleSettings.fromPreferences(schemaFour))
+        assertNotNull(ModuleSettings.fromPreferences(current + ("settings_schema" to 3) - "hide_article_commission"))
+        assertNull(ModuleSettings.fromPreferences(current + ("settings_schema" to 6)))
     }
 
     @Test
@@ -188,7 +195,7 @@ class ModuleSettingsTest {
             assertNotNull("legacy event=$eventCalendar", decoded)
             val serialized = decoded!!.toPreferences()
 
-            assertEquals(3, serialized["settings_schema"])
+            assertEquals(5, serialized["settings_schema"])
             assertFalse(serialized.containsKey("hide_event_calendar"))
             assertEquals(false, serialized["hide_article_rewards"])
             assertFalse(serialized.containsKey("comment_thread_lines"))
@@ -208,7 +215,7 @@ class ModuleSettingsTest {
 
         assertNotNull(decoded)
         val serialized = decoded!!.toPreferences()
-        assertEquals(3, serialized["settings_schema"])
+        assertEquals(5, serialized["settings_schema"])
         assertFalse(serialized.containsKey("comment_thread_lines"))
         before.filterKeys { it != "settings_schema" }.forEach { (key, value) ->
             assertEquals("key=$key", value, serialized[key])
@@ -218,7 +225,7 @@ class ModuleSettingsTest {
 
     @Test
     fun legacySchemasIgnoreRetiredCommentKeyWithoutExportingIt() {
-        listOf(legacyPreferences(), schemaTwoPreferences()).forEach { legacy ->
+        legacySettingsSnapshots().forEach { legacy ->
             val decoded = ModuleSettings.fromPreferences(legacy + ("comment_thread_lines" to true))
 
             assertNotNull(decoded)
@@ -245,11 +252,15 @@ class ModuleSettingsTest {
         assertEquals(commonKeys + "hide_article_rewards", schemaTwo.keys)
         assertEquals(2, schemaTwo["settings_schema"])
         assertEquals(true, schemaTwo["hide_article_rewards"])
+        val schemaThree = schemaThreePreferences()
+        assertEquals(commonKeys + "hide_article_rewards", schemaThree.keys)
+        assertEquals(3, schemaThree["settings_schema"])
+        assertEquals(true, schemaThree["hide_article_recommendations"])
     }
 
     @Test
     fun schemaThreeRequiresAnExplicitAiBooleanAndRetainsItsChoiceBehindMaster() {
-        val preferences = validPreferences()
+        val preferences = schemaThreePreferences()
         assertNull(ModuleSettings.fromPreferences(preferences - "hide_article_ai_summary"))
         listOf<Any?>(null, "false", 0, 1L, 1.0).forEach { invalid ->
             assertNull(ModuleSettings.fromPreferences(preferences + ("hide_article_ai_summary" to invalid)))
@@ -268,7 +279,7 @@ class ModuleSettingsTest {
 
     @Test
     fun legacySnapshotsRequireEveryOldKeyEvenTheDiscardedCalendarBoolean() {
-        listOf(legacyPreferences(), schemaTwoPreferences()).forEach { legacy ->
+        legacySettingsSnapshots().forEach { legacy ->
             legacy.keys.forEach { missing ->
                 assertNull("schema=${legacy["settings_schema"]} missing=$missing", ModuleSettings.fromPreferences(legacy - missing))
             }
@@ -286,9 +297,9 @@ class ModuleSettingsTest {
             "settings_revision" to listOf<Any?>(0L, -1L, 41, "41", null),
             "settings_writer_id" to listOf<Any?>("not-a-uuid", null, 1L),
             "auto_refresh_minutes" to listOf<Any?>(2, 3, 10L, "10", null),
-            "settings_schema" to listOf<Any?>(1L, "1", 4, null),
+            "settings_schema" to listOf<Any?>(1L, "1", 6, null),
         ).forEach { (key, invalidValues) ->
-            listOf(legacyPreferences(), schemaTwoPreferences()).forEach { legacy ->
+            legacySettingsSnapshots().forEach { legacy ->
                 invalidValues.forEach { invalid ->
                     assertNull("key=$key value=$invalid", ModuleSettings.fromPreferences(legacy + (key to invalid)))
                 }
@@ -383,7 +394,7 @@ class ModuleSettingsTest {
     }
 
     private fun validPreferences(): MutableMap<String, Any> = linkedMapOf(
-        "settings_schema" to 3,
+        "settings_schema" to 5,
         "settings_revision" to 1L,
         "settings_writer_id" to WRITER_ID,
         "auto_refresh_minutes" to 0,
@@ -396,6 +407,8 @@ class ModuleSettingsTest {
         "hide_article_rating" to false,
         "hide_article_rewards" to false,
         "hide_article_recommendations" to false,
+        "hide_article_commission" to false,
+        "comment_tree_lines" to false,
     )
 
     private companion object {

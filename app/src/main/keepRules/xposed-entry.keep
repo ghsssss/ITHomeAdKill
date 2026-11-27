@@ -1,0 +1,6 @@
+# The framework loads this entry from META-INF/xposed/java_init.list.
+# Keep its stable name and no-arg constructor; ordinary referenced hooks remain optimizable.
+-keep,allowoptimization public class io.github.ghsssss.ithomeadkill.MainHook {
+    public <init>();
+}
+-dontwarn io.github.libxposed.annotation.**

@@ -10,6 +10,8 @@ enum class Toggle(val key: String, val defaultValue: Boolean) {
     ARTICLE_RATING("hide_article_rating", false),
     ARTICLE_REWARDS("hide_article_rewards", false),
     ARTICLE_RECOMMENDATIONS("hide_article_recommendations", false),
+    ARTICLE_COMMISSION("hide_article_commission", false),
+    COMMENT_TREE("comment_tree_lines", false),
 }
 
 object SettingsContract {
@@ -33,7 +35,7 @@ data class ModuleSettings(
     fun enabled(toggle: Toggle): Boolean = raw(Toggle.MASTER) && raw(toggle)
 
     fun toPreferences(): Map<String, Any> = buildMap {
-        put(SettingsContract.SCHEMA_KEY, 3)
+        put(SettingsContract.SCHEMA_KEY, 5)
         put(SettingsContract.REVISION_KEY, revision)
         put(SettingsContract.WRITER_KEY, writerId)
         put(SettingsContract.REFRESH_KEY, autoRefreshMinutes)
@@ -47,7 +49,7 @@ data class ModuleSettings(
 
         fun fromPreferences(values: Map<String, *>): ModuleSettings? {
             val schema = values[SettingsContract.SCHEMA_KEY] as? Int ?: return null
-            if (schema != 1 && schema != 2 && schema != 3) return null
+            if (schema !in 1..5) return null
             val revision = values[SettingsContract.REVISION_KEY] as? Long ?: return null
             if (revision <= 0L) return null
             val writerId = values[SettingsContract.WRITER_KEY] as? String ?: return null
@@ -59,6 +61,8 @@ data class ModuleSettings(
             val toggles = Toggle.values().associateWith {
                 when {
                     schema == 1 && it == Toggle.ARTICLE_REWARDS -> false
+                    schema < 4 && it == Toggle.ARTICLE_COMMISSION -> false
+                    schema < 5 && it == Toggle.COMMENT_TREE -> false
                     else -> values[it.key] as? Boolean ?: return null
                 }
             }

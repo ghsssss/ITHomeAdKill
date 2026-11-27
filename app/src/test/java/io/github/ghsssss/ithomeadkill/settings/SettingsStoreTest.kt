@@ -56,7 +56,9 @@ class SettingsStoreTest {
             val storage = MemoryStorage(legacy)
             val store = storage.store()
             val expected = (legacy - "hide_event_calendar") + mapOf(
-                "settings_schema" to 3,
+                "settings_schema" to 5,
+                "hide_article_commission" to false,
+                "comment_tree_lines" to false,
                 "settings_revision" to 42L,
                 "hide_article_rewards" to false,
             )
@@ -220,10 +222,10 @@ class SettingsStoreTest {
             legacy + ("settings_revision" to 41),
             legacy + ("settings_writer_id" to "invalid"),
             legacy + ("auto_refresh_minutes" to 3),
-            legacy + ("settings_schema" to 4),
+            legacy + ("settings_schema" to 6),
             current - "hide_article_rewards",
             current + ("hide_article_rewards" to "false"),
-            current + ("settings_schema" to 4),
+            current + ("settings_schema" to 6),
         )
         invalid.forEach { snapshot ->
             val storage = MemoryStorage(snapshot)
@@ -249,7 +251,7 @@ class SettingsStoreTest {
         assertEquals(42L, state.settings!!.revision)
         assertFalse(state.settings!!.raw(Toggle.MASTER))
         assertEquals(10, state.settings!!.autoRefreshMinutes)
-        assertEquals(3, storage.values["settings_schema"])
+        assertEquals(5, storage.values["settings_schema"])
         assertFalse(storage.values.containsKey("hide_event_calendar"))
         assertEquals(1, storage.writes.size)
     }
@@ -262,7 +264,9 @@ class SettingsStoreTest {
         val state = storage.store().setToggle(Toggle.ARTICLE_REWARDS, true)
 
         val expected = (legacy - "hide_event_calendar") + mapOf(
-            "settings_schema" to 3,
+            "settings_schema" to 5,
+            "hide_article_commission" to false,
+            "comment_tree_lines" to false,
             "settings_revision" to 42L,
             "hide_article_rewards" to true,
         )

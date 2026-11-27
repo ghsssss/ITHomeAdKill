@@ -28,9 +28,14 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Published builds previously used the debug signer. Preserve update compatibility.
+            signingConfig = signingConfigs.getByName("debug")
+            optimization {
+                enable = true
+            }
         }
     }
+
     buildFeatures {
         compose = true
     }

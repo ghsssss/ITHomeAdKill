@@ -66,6 +66,17 @@ internal class HostRuntime(
     private var touching = false
 
     private val pagerIdle = WeakHashMap<View, Boolean>()
+    private val commentOrder: ThreadTreeOrderController = ThreadTreeOrderController(hooks,
+        { preferences.snapshot?.enabled(Toggle.COMMENT_TREE) == true },
+        ::commentOrderChanged, ::logOnce)
+    private val commentTree: ThreadTreeController = ThreadTreeController(
+        { preferences.snapshot?.enabled(Toggle.COMMENT_TREE) == true },
+        ::logOnce,
+        commentOrder::prepare,
+        commentOrder::restoreList,
+    )
+
+    private fun commentOrderChanged(adapter: Any): Unit = commentTree.adapterChanged(adapter)
 
     private class Hidden(view: View) {
         var height = view.layoutParams?.height ?: ViewGroup.LayoutParams.WRAP_CONTENT
@@ -124,6 +135,8 @@ internal class HostRuntime(
     }
 
     fun destroyed(activity: Activity) {
+        screens[activity]?.root?.get()?.let(commentOrder::restoreWithin)
+        commentTree.removeFor(activity)
         val screen = screens.remove(activity) ?: return
         val observer = screen.root.get()?.viewTreeObserver
         if (observer?.isAlive == true) {
@@ -163,6 +176,7 @@ internal class HostRuntime(
     }
 
     fun desiredLayout(view: View, params: ViewGroup.LayoutParams) {
+        commentTree.desiredLayout(view, params)
         if (mutating) return
         hidden[view]?.let {
             // RecyclerView can resubmit the very LayoutParams we collapsed.
@@ -223,6 +237,10 @@ internal class HostRuntime(
     private fun sweepAll() { screens.values.toList().forEach(::requestSweep) }
 
     private fun settingsChanged() {
+        if (preferences.snapshot?.enabled(Toggle.COMMENT_TREE) != true) {
+            commentOrder.clear()
+            commentTree.clearAll()
+        }
         sweepAll()
         startTick()
     }
@@ -230,11 +248,17 @@ internal class HostRuntime(
     private fun sweep(screen: Screen) {
         val activity = screen.activity.get() ?: return
         val root = screen.root.get() ?: return
+        runCatching { HostSettingsEntry.attach(activity, root) }.onFailure {
+            logOnce("settings-entry:${it.javaClass.name}", "settings-entry-failed:${it.javaClass.simpleName}")
+        }
         val settings = preferences.snapshot
         fun enabled(toggle: Toggle) = settings?.enabled(toggle) == true
         var visited = 0
         fun walk(view: View) {
             if (++visited > 4_000) return
+            if (view is ViewGroup && ThreadTreeAdmission.isSupported(activity.javaClass.name, entryName(view))) {
+                commentTree.update(view, activity)
+            }
             val id = entryName(view)
             val nativeToggle = when {
                 id == "fl_slide" && isMain(activity) && hasChild(view, "banner") -> Toggle.HOME_CAROUSEL
@@ -343,7 +367,8 @@ internal class HostRuntime(
         webVersions[view] = key
         view.evaluateJavascript(ArticleStyle.script(settings?.enabled(Toggle.AI_SUMMARY) == true,
             settings?.enabled(Toggle.ARTICLE_RATING) == true,
-            settings?.enabled(Toggle.ARTICLE_REWARDS) == true)) { result ->
+            settings?.enabled(Toggle.ARTICLE_REWARDS) == true,
+            settings?.enabled(Toggle.ARTICLE_COMMISSION) == true)) { result ->
             // Only selector presence/visibility is returned, never article text or URLs.
             logOnce("article-dom:$key:$result", "article-dom=$result")
             if (!result.contains("article") || !result.contains("true")) {
@@ -362,6 +387,7 @@ internal class HostRuntime(
         val handle = hooks.observe(method, before = { chain ->
             val holder = chain.args[0] ?: return@observe
             val view = runCatching { holder.javaClass.getField("itemView").get(holder) as? View }.getOrNull() ?: return@observe
+            commentTree.releaseWithin(view)
             fun release(part: View) {
                 setHidden(part, false)
                 if (part is ViewGroup && part !is WebView) for (i in 0 until part.childCount) release(part.getChildAt(i))
@@ -373,6 +399,14 @@ internal class HostRuntime(
             viewChanged(view)
         })
         if (handle != null) logOnce("recycler-bind", "recycler-bind-hook=ready")
+        for (notify in method.declaringClass.declaredMethods.filter {
+            it.name in setOf("notifyDataSetChanged", "notifyItemRangeChanged", "notifyItemRangeInserted",
+                "notifyItemRangeRemoved", "notifyItemMoved")
+        }) {
+            hooks.consumeVoid(notify,
+                consume = { chain -> commentOrder.notification(chain.thisObject) },
+                after = { chain -> commentTree.adapterChanged(chain.thisObject) })
+        }
     }
 
     private fun installPagerHooks(loader: ClassLoader?) {
